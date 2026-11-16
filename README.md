@@ -4,7 +4,7 @@ A window manager for Windows 10 and 11, modeled on [Rectangle](https://rectangle
 
 Unofficial project, not affiliated with Rectangle or its authors.
 
-![Keyboard shortcuts](docs/shortcuts.png)
+![Rectangle for PC in action: halves, size cycling, corners, thirds and snap areas](docs/demo.gif)
 
 ## Features
 
@@ -21,6 +21,8 @@ Unofficial project, not affiliated with Rectangle or its authors.
 ## Default shortcuts
 
 Rectangle's default layout, with `Win+Alt` in place of `Ctrl+Option`. Every shortcut can be changed in Preferences.
+
+![Keyboard shortcuts](docs/shortcuts.png)
 
 | Action | Shortcut |
 | --- | --- |
@@ -79,6 +81,7 @@ All interface text lives in [`src/Lang.cs`](src/Lang.cs): one row per string, on
 | `src/Prefs.cs` | Preferences window |
 | `src/Theme.cs` | Colors, icons, light/dark theme |
 | `src/Lang.cs` | Interface text in every language, language detection |
+| `tools/demo/` | Draws `docs/demo.gif` frame by frame with the app's own layout code (`make-demo.ps1`, needs ffmpeg) |
 | `src/Native.cs` | Win32 interop |
 
 ## Credits
