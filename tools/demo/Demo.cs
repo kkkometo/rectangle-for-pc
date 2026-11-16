@@ -65,7 +65,17 @@ namespace Encuadre.Demo
         }
     }
 
-    sealed class Shot { public double T0, T1, Press; public string[] Keys; public string Label; public ActionId Icon; }
+    // Atajo en pantalla. Keys[0..n-2] son modificadores que bajan en Down[i] y se sueltan en Release;
+    // la última tecla se toca en cada Taps[j] (ahí ocurre la acción, con Labels[j] / Icons[j]).
+    sealed class Shot
+    {
+        public double T0, T1, Release;
+        public string[] Keys;
+        public double[] Down, Taps;
+        public string[] Labels;
+        public ActionId[] Icons;
+    }
+    sealed class Flash { public double T; public AppWin W; }
     sealed class Caption { public double T0, T1; public string Title, Sub; }
     sealed class Foot { public double T0, T1; public RectangleF R; }
     sealed class Badge { public double T; public AppWin W; public string Text; }
@@ -76,10 +86,11 @@ namespace Encuadre.Demo
     {
         public const int Gap = 6;
         public static readonly RECT Work = new RECT(0, 0, 840, 442);
-        public const double Duration = 35.5;
+        public const double Duration = 46.0;
 
         public readonly List<AppWin> Wins = new List<AppWin>();
         public readonly List<Shot> Shots = new List<Shot>();
+        public readonly List<Flash> Flashes = new List<Flash>();
         public readonly List<Caption> Captions = new List<Caption>();
         public readonly List<Foot> Feet = new List<Foot>();
         public readonly List<Badge> Badges = new List<Badge>();
@@ -100,10 +111,33 @@ namespace Encuadre.Demo
             return w;
         }
 
-        void Snap(AppWin w, double t, ActionId a, int cycle) { w.Move(t, TileRect(a, cycle), 0.16); w.Raises.Add(t); }
-        void Shot(double t0, double t1, double press, string key, string label, ActionId icon)
+        void Snap(AppWin w, double t, ActionId a, int cycle) { MoveTo(w, t, TileRect(a, cycle)); }
+        void MoveTo(AppWin w, double t, RectangleF r)
         {
-            Shots.Add(new Shot { T0 = t0, T1 = t1, Press = press, Keys = key == null ? new string[0] : new[] { "Win", "Alt", key }, Label = label, Icon = icon });
+            w.Move(t, r, 0.16);
+            w.Raises.Add(t);
+            Flashes.Add(new Flash { T = t, W = w });
+        }
+
+        // Atajo completo con acción en t: aparecen las teclas, baja Win, baja Alt, se toca la tecla, se sueltan.
+        void Combo(double t, double end, string key, string label, ActionId icon)
+        {
+            Shots.Add(new Shot
+            {
+                T0 = t - 0.8, T1 = end, Release = t + 0.45,
+                Keys = new[] { "Win", "Alt", key }, Down = new[] { t - 0.55, t - 0.3 },
+                Taps = new[] { t }, Labels = new[] { label }, Icons = new[] { icon }
+            });
+        }
+
+        // Solo la etiqueta (al arrastrar no hay teclas)
+        void Hint(double t0, double t1, string label, ActionId icon)
+        {
+            Shots.Add(new Shot
+            {
+                T0 = t0, T1 = t1, Release = t1, Keys = new string[0], Down = new double[0],
+                Taps = new[] { t0 }, Labels = new[] { label }, Icons = new[] { icon }
+            });
         }
         void Cap(double t0, double t1, string title, string sub) { Captions.Add(new Caption { T0 = t0, T1 = t1, Title = title, Sub = sub }); }
         void Cur(double t, float x, float y) { Cursor.Add(new CKey { T = t, X = x, Y = y }); }
@@ -142,73 +176,82 @@ namespace Encuadre.Demo
             terminal = NewWin("Terminal", 2, Color.FromArgb(80, 205, 125), new RectangleF(110, 210, 380, 196), -3);
             photos = NewWin("Photos", 3, Color.FromArgb(236, 100, 160), new RectangleF(470, 170, 330, 230), -4);
 
+            // 0–2.6 portada · 2.6–6.8 explicación "Hold Win + Alt" · 6.8–42.4 escritorio · 42.6– cierre
+
             // ---- textos ----
-            Cap(2.9, 7.2, "Snap to halves", "Win + Alt + Left or Right arrow");
-            Cap(7.4, 11.5, "Press again to resize", "Halves cycle through ½, ⅔ and ⅓");
-            Cap(11.75, 16.25, "Corners", "Win + Alt + U, I, J, K");
-            Cap(16.45, 20.5, "Thirds", "Win + Alt + D, F, G");
-            Cap(20.7, 25.1, "Maximize, restore, center", "Win + Alt + Enter, Backspace, C");
-            Cap(25.35, 31.95, "Or drag to an edge", "A preview shows where the window will land");
+            Cap(6.9, 12.3, "Snap to halves", "Hold Win + Alt, then tap Left or Right");
+            Cap(12.5, 17.5, "Tap again to resize", "Keep holding Win + Alt to go from ½ to ⅔ to ⅓");
+            Cap(17.7, 24.3, "Corners", "Win + Alt + U, I, J or K");
+            Cap(24.5, 29.9, "Thirds", "Win + Alt + D, F or G");
+            Cap(30.1, 35.7, "Maximize, restore, center", "Win + Alt + Enter, Backspace or C");
+            Cap(35.9, 42.4, "Or drag to an edge", "A preview shows where the window will land");
 
             // ---- cursor ----
-            CursorVisible.Add(new[] { 3.2, 11.5 });
-            CursorVisible.Add(new[] { 25.5, 31.95 });
-            Cur(3.2, 430, 300); Cur(3.9, 210, 49); Cur(5.0, 210, 49); Cur(5.5, 560, 83); Cur(6.9, 560, 83); Cur(7.5, 160, 19);
-            Cur(25.4, 600, 380); Cur(26.3, 420, 136); Cur(26.5, 420, 136); Cur(27.6, 3, 222); Cur(28.3, 3, 222);
-            Cur(28.95, 490, 19); Cur(29.1, 490, 19); Cur(29.75, 430, 2); Cur(30.75, 836, 2);
-            Clicks.AddRange(new[] { 4.0, 5.6, 7.6, 26.45, 29.05 });
+            CursorVisible.Add(new[] { 6.9, 17.6 });
+            CursorVisible.Add(new[] { 35.8, 42.4 });
+            Cur(6.9, 430, 300); Cur(7.4, 210, 49); Cur(8.9, 210, 49); Cur(9.4, 560, 83); Cur(11.9, 560, 83); Cur(12.3, 160, 19);
+            const double d = 10.4; // el arrastre empieza 10.4 s más tarde que en la primera versión
+            Cur(25.4 + d, 600, 380); Cur(26.3 + d, 420, 136); Cur(26.5 + d, 420, 136); Cur(27.6 + d, 3, 222); Cur(28.3 + d, 3, 222);
+            Cur(28.95 + d, 490, 19); Cur(29.1 + d, 490, 19); Cur(29.75 + d, 430, 2); Cur(30.75 + d, 836, 2);
+            Clicks.AddRange(new[] { 7.5, 9.5, 12.4, 26.45 + d, 29.05 + d });
 
             // ---- mitades ----
-            browser.Raises.Add(4.0);
-            Snap(browser, 4.5, ActionId.LeftHalf, 0);
-            Shot(4.25, 5.3, 4.5, "←", "Left Half", ActionId.LeftHalf);
-            notes.Raises.Add(5.6);
-            Snap(notes, 6.2, ActionId.RightHalf, 0);
-            Shot(5.95, 7.0, 6.2, "→", "Right Half", ActionId.RightHalf);
+            browser.Raises.Add(7.5);
+            Snap(browser, 8.4, ActionId.LeftHalf, 0);
+            Combo(8.4, 9.3, "←", "Left Half", ActionId.LeftHalf);
+            notes.Raises.Add(9.5);
+            Snap(notes, 10.6, ActionId.RightHalf, 0);
+            Combo(10.6, 11.5, "→", "Right Half", ActionId.RightHalf);
 
-            // ---- ciclo ½ → ⅔ → ⅓ → ½ ----
-            browser.Raises.Add(7.6);
+            // ---- ciclo ½ → ⅔ → ⅓ → ½, con Win + Alt sostenidas ----
+            browser.Raises.Add(12.4);
             string[] fr = { "½", "⅔", "⅓" };
-            double[] at = { 8.3, 9.3, 10.3 };
+            double[] taps = { 13.55, 14.65, 15.75 };
             int[] cyc = { 1, 2, 0 };
+            var labels = new string[3];
             for (int i = 0; i < 3; i++)
             {
-                Snap(browser, at[i], ActionId.LeftHalf, cyc[i]);
-                Badges.Add(new Badge { T = at[i], W = browser, Text = fr[cyc[i]] });
-                Shot(i == 0 ? 8.0 : at[i], i == 2 ? 11.3 : at[i + 1], at[i], "←", "Left Half · " + fr[cyc[i]], ActionId.LeftHalf);
+                Snap(browser, taps[i], ActionId.LeftHalf, cyc[i]);
+                Badges.Add(new Badge { T = taps[i], W = browser, Text = fr[cyc[i]] });
+                labels[i] = "Left Half · " + fr[cyc[i]];
             }
+            Shots.Add(new Shot
+            {
+                T0 = 12.75, T1 = 16.8, Release = 16.25, Keys = new[] { "Win", "Alt", "←" }, Down = new[] { 12.95, 13.15 },
+                Taps = taps, Labels = labels, Icons = new[] { ActionId.LeftHalf, ActionId.LeftHalf, ActionId.LeftHalf }
+            });
 
-            // ---- esquinas ----
-            Snap(browser, 12.2, ActionId.TopLeft, 0); Shot(11.95, 13.0, 12.2, "U", "Top Left", ActionId.TopLeft);
-            Snap(notes, 13.2, ActionId.TopRight, 0); Shot(13.0, 14.0, 13.2, "I", "Top Right", ActionId.TopRight);
-            Snap(terminal, 14.2, ActionId.BottomLeft, 0); Shot(14.0, 15.0, 14.2, "J", "Bottom Left", ActionId.BottomLeft);
-            Snap(photos, 15.2, ActionId.BottomRight, 0); Shot(15.0, 16.1, 15.2, "K", "Bottom Right", ActionId.BottomRight);
+            // ---- esquinas (cada 1.6 s) ----
+            Snap(browser, 18.5, ActionId.TopLeft, 0); Combo(18.5, 19.3, "U", "Top Left", ActionId.TopLeft);
+            Snap(notes, 20.1, ActionId.TopRight, 0); Combo(20.1, 20.9, "I", "Top Right", ActionId.TopRight);
+            Snap(terminal, 21.7, ActionId.BottomLeft, 0); Combo(21.7, 22.5, "J", "Bottom Left", ActionId.BottomLeft);
+            Snap(photos, 23.3, ActionId.BottomRight, 0); Combo(23.3, 24.25, "K", "Bottom Right", ActionId.BottomRight);
 
             // ---- tercios ----
-            Snap(browser, 16.8, ActionId.FirstThird, 0); Shot(16.55, 17.6, 16.8, "D", "First Third", ActionId.FirstThird);
-            Snap(notes, 17.8, ActionId.CenterThird, 0); Shot(17.6, 18.6, 17.8, "F", "Center Third", ActionId.CenterThird);
-            Snap(terminal, 18.8, ActionId.LastThird, 0); Shot(18.6, 19.9, 18.8, "G", "Last Third", ActionId.LastThird);
+            Snap(browser, 25.3, ActionId.FirstThird, 0); Combo(25.3, 26.1, "D", "First Third", ActionId.FirstThird);
+            Snap(notes, 26.9, ActionId.CenterThird, 0); Combo(26.9, 27.7, "F", "Center Third", ActionId.CenterThird);
+            Snap(terminal, 28.5, ActionId.LastThird, 0); Combo(28.5, 29.45, "G", "Last Third", ActionId.LastThird);
 
             // ---- maximizar, restaurar, centrar ----
-            Snap(terminal, 21.2, ActionId.Maximize, 0); Shot(20.95, 22.2, 21.2, "Enter", "Maximize", ActionId.Maximize);
-            terminal.Move(22.4, terminal.Initial, 0.16); Shot(22.2, 23.4, 22.4, "Backspace", "Restore", ActionId.Restore);
+            Snap(terminal, 30.9, ActionId.Maximize, 0); Combo(30.9, 31.7, "Enter", "Maximize", ActionId.Maximize);
+            MoveTo(terminal, 32.5, terminal.Initial); Combo(32.5, 33.3, "Backspace", "Restore", ActionId.Restore);
             var centered = new RectangleF((840 - 380) / 2, (442 - 196) / 2, 380, 196);
-            terminal.Move(23.6, centered, 0.16); Shot(23.4, 24.9, 23.6, "C", "Center", ActionId.Center);
+            MoveTo(terminal, 34.1, centered); Combo(34.1, 35.05, "C", "Center", ActionId.Center);
 
             // ---- arrastrar: borde izquierdo, luego arriba y a la esquina ----
-            terminal.Raises.Add(26.45);
-            Drag(terminal, 26.5, 28.3, new PointF(190, 13));
-            Snap(terminal, 28.3, ActionId.LeftHalf, 0);
-            Feet.Add(new Foot { T0 = 27.56, T1 = 28.3, R = TileRect(ActionId.LeftHalf, 0) });
-            Shot(27.56, 28.7, 27.56, null, "Left Half", ActionId.LeftHalf);
+            terminal.Raises.Add(26.45 + d);
+            Drag(terminal, 26.5 + d, 28.3 + d, new PointF(190, 13));
+            Snap(terminal, 28.3 + d, ActionId.LeftHalf, 0);
+            Feet.Add(new Foot { T0 = 27.56 + d, T1 = 28.3 + d, R = TileRect(ActionId.LeftHalf, 0) });
+            Hint(27.56 + d, 28.8 + d, "Left Half", ActionId.LeftHalf);
 
-            notes.Raises.Add(29.05);
-            Drag(notes, 29.1, 31.15, new PointF(207, 13));
-            Snap(notes, 31.15, ActionId.TopRight, 0);
-            Feet.Add(new Foot { T0 = 29.72, T1 = 30.65, R = TileRect(ActionId.Maximize, 0) });
-            Feet.Add(new Foot { T0 = 30.65, T1 = 31.15, R = TileRect(ActionId.TopRight, 0) });
-            Shot(29.72, 30.65, 29.72, null, "Maximize", ActionId.Maximize);
-            Shot(30.65, 31.6, 30.65, null, "Top Right", ActionId.TopRight);
+            notes.Raises.Add(29.05 + d);
+            Drag(notes, 29.1 + d, 31.15 + d, new PointF(207, 13));
+            Snap(notes, 31.15 + d, ActionId.TopRight, 0);
+            Feet.Add(new Foot { T0 = 29.72 + d, T1 = 30.65 + d, R = TileRect(ActionId.Maximize, 0) });
+            Feet.Add(new Foot { T0 = 30.65 + d, T1 = 31.15 + d, R = TileRect(ActionId.TopRight, 0) });
+            Hint(29.72 + d, 30.65 + d, "Maximize", ActionId.Maximize);
+            Hint(30.65 + d, 31.8 + d, "Top Right", ActionId.TopRight);
 
             foreach (var w in Wins) w.Keys.Sort(delegate(RKey a, RKey b) { return a.T.CompareTo(b.T); });
         }
@@ -216,8 +259,9 @@ namespace Encuadre.Demo
 
     sealed class Renderer
     {
-        public const int W = 960, H = 640;
-        static readonly Rectangle Scr = new Rectangle(60, 88, 840, 472);
+        public const int W = 960, H = 690;
+        static readonly Rectangle Scr = new Rectangle(60, 84, 840, 472);
+        const float HudTop = 596, KeyH = 56;
         const int TaskbarH = 30;
         static readonly int WorkH = Scr.Height - TaskbarH;
 
@@ -228,9 +272,15 @@ namespace Encuadre.Demo
         static readonly string Sans = "Segoe UI", Semi = "Segoe UI Semibold";
         readonly Font fCapTitle = new Font(Semi, 27, GraphicsUnit.Pixel);
         readonly Font fCapSub = new Font(Sans, 15.5f, GraphicsUnit.Pixel);
-        readonly Font fKey = new Font(Semi, 15, GraphicsUnit.Pixel);
-        readonly Font fLabel = new Font(Sans, 15, GraphicsUnit.Pixel);
-        readonly Font fFrac = new Font(Semi, 21, GraphicsUnit.Pixel);
+        readonly Font fKey = new Font(Semi, 22, GraphicsUnit.Pixel);
+        readonly Font fPlus = new Font(Sans, 24, GraphicsUnit.Pixel);
+        readonly Font fLabel = new Font(Semi, 22, GraphicsUnit.Pixel);
+        readonly Font fFrac = new Font(Semi, 28, GraphicsUnit.Pixel);
+        readonly Font fBigKey = new Font(Semi, 34, GraphicsUnit.Pixel);
+        readonly Font fBigPlus = new Font(Sans, 36, GraphicsUnit.Pixel);
+        readonly Font fExplain = new Font(Semi, 40, GraphicsUnit.Pixel);
+        readonly Font fExplainSub = new Font(Sans, 19, GraphicsUnit.Pixel);
+        Bitmap backdrop;
         readonly Font fWinTitle = new Font(Sans, 11, GraphicsUnit.Pixel);
         readonly Font fBadge = new Font(Semi, 40, GraphicsUnit.Pixel);
         readonly Font fClock = new Font(Sans, 11, GraphicsUnit.Pixel);
@@ -319,6 +369,8 @@ namespace Encuadre.Demo
 
             titleCard = Card(true);
             endCard = Card(false);
+            backdrop = new Bitmap(W, H, PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(backdrop)) { Hq(g); Backdrop(g); }
         }
 
         float TaskX(int i) { return Scr.Width / 2f - s.Wins.Count * 34 / 2f + i * 34 + 8; }
@@ -349,7 +401,7 @@ namespace Encuadre.Demo
                 Hq(g);
                 Backdrop(g);
                 int logo = title ? 104 : 84;
-                float y = title ? 150 : 158;
+                float y = title ? 172 : 180;
                 using (var l = Icons.Logo(logo)) g.DrawImage(l, (W - logo) / 2f, y, logo, logo);
                 y += logo + 22;
                 using (var f = new Font(Semi, title ? 50 : 44, GraphicsUnit.Pixel))
@@ -379,18 +431,124 @@ namespace Encuadre.Demo
             }
         }
 
+        Bitmap scratch;
+
         public Bitmap Render(double t)
         {
-            double titleA = t < 2.4 ? 1 : t < 2.8 ? 1 - Ease.InOutCubic((t - 2.4) / 0.4) : t > 35.1 ? Ease.InOutCubic((t - 35.1) / 0.4) : 0;
-            double endA = t < 32.15 ? 0 : Ease.InOutCubic((t - 32.15) / 0.4);
+            double end = Story.Duration;
+            double titleA = t < 2.4 ? 1 : t < 2.8 ? 1 - Ease.InOutCubic((t - 2.4) / 0.4) : t > end - 0.4 ? Ease.InOutCubic((t - (end - 0.4)) / 0.4) : 0;
+            double explA = t < 2.4 ? 0 : t < 6.4 ? 1 : t < 6.8 ? 1 - Ease.InOutCubic((t - 6.4) / 0.4) : 0;
+            double endA = t < 42.6 ? 0 : Ease.InOutCubic((t - 42.6) / 0.4);
             using (var g = Graphics.FromImage(frame))
             {
                 Hq(g);
-                if (titleA < 1 && endA < 1) Stage(g, t);
+                if (titleA < 1 && explA < 1 && endA < 1) Stage(g, t);
+                if (explA >= 1) Explainer(g, t);
+                else if (explA > 0)
+                {
+                    if (scratch == null) scratch = new Bitmap(W, H, PixelFormat.Format32bppArgb);
+                    using (var sg = Graphics.FromImage(scratch)) { Hq(sg); Explainer(sg, t); }
+                    DrawFaded(g, scratch, explA);
+                }
                 DrawFaded(g, endCard, endA);
                 DrawFaded(g, titleCard, titleA);
             }
             return frame;
+        }
+
+        // ---------- explicación: "Hold Win + Alt, then tap a key" ----------
+        void Explainer(Graphics g, double t)
+        {
+            g.DrawImageUnscaled(backdrop, 0, 0);
+            double ta = Ease.Clamp((t - 2.7) / 0.4);
+            float dy = (float)((1 - Ease.OutCubic((t - 2.7) / 0.5)) * 12);
+            using (var b = new SolidBrush(Color.FromArgb(Ease.A(ta, 255), 246, 246, 250)))
+                g.DrawString("Hold Win + Alt, then tap a key", fExplain, b, new RectangleF(0, 206 + dy, W, 60), center);
+
+            string[] keys = { "Win", "Alt", "←" };
+            float[] widths = { 150, 136, 116 };
+            const float kh = 88, plus = 60, arrowGap = 96, icon = 92, y = 308;
+            double[] down = { 3.35, 3.75 };
+            const double tap = 4.35, release = 5.5;
+            double ka = Ease.Clamp((t - 2.9) / 0.35);
+            float total = widths[0] + widths[1] + widths[2] + 2 * plus + arrowGap + icon;
+            float x = (W - total) / 2;
+            for (int k = 0; k < 3; k++)
+            {
+                if (k > 0)
+                {
+                    using (var b = new SolidBrush(Color.FromArgb(Ease.A(ka, 255), 120, 122, 140)))
+                    {
+                        var ps = g.MeasureString("+", fBigPlus, PointF.Empty, tight);
+                        g.DrawString("+", fBigPlus, b, x + (plus - ps.Width) / 2, y + (kh - ps.Height) / 2, tight);
+                    }
+                    x += plus;
+                }
+                bool dn = k < 2 ? t >= down[k] && t < release : t >= tap && t < tap + 0.3;
+                var face = new RectangleF(x, y, widths[k], kh);
+                DrawKey(g, face, keys[k], fBigKey, dn, ka, 8, 2.2f);
+                if (k == 2) Ripple(g, face, t - tap, ka, 22);
+                x += widths[k];
+            }
+            // → resultado
+            double ra = t >= tap ? Ease.Clamp((t - tap) / 0.2) : 0.0;
+            using (var pen = new Pen(Color.FromArgb(Ease.A(ka, 150), 150, 152, 170), 3f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            {
+                float ax = x + 24, ay = y + kh / 2, aw = arrowGap - 48;
+                g.DrawLine(pen, ax, ay, ax + aw, ay);
+                g.DrawLines(pen, new[] { new PointF(ax + aw - 9, ay - 9), new PointF(ax + aw, ay), new PointF(ax + aw - 9, ay + 9) });
+            }
+            x += arrowGap;
+            var ir = new RectangleF(x, y + (kh - icon) / 2, icon, icon);
+            Icons.Draw(g, ActionId.LeftHalf, ir, Color.FromArgb(Ease.A(ka * (0.3 + 0.7 * ra), 255), 235, 236, 245));
+            using (var b = new SolidBrush(Color.FromArgb(Ease.A(ra, 255), 214, 216, 228)))
+            {
+                var ls = g.MeasureString("Left Half", fExplainSub, PointF.Empty, tight);
+                g.DrawString("Left Half", fExplainSub, b, ir.X + (icon - ls.Width) / 2, ir.Bottom + 6, tight);
+            }
+
+            double sa = Ease.Clamp((t - 5.0) / 0.4);
+            using (var b = new SolidBrush(Color.FromArgb(Ease.A(sa, 255), 160, 162, 182)))
+                g.DrawString("Arrows for halves   ·   U I J K for corners   ·   D F G for thirds", fExplainSub, b, new RectangleF(0, 470, W, 30), center);
+        }
+
+        static readonly Color Accent = Color.FromArgb(96, 140, 255);
+
+        void DrawKey(Graphics g, RectangleF face0, string text, Font font, bool down, double a, float depth, float arrowScale)
+        {
+            float rad = face0.Height * 0.2f;
+            if (down)
+                for (int i = 3; i >= 1; i--)
+                    using (var p = Theme.Rounded(RectangleF.Inflate(face0, 3 * i, 3 * i), rad + 3 * i))
+                    using (var b = new SolidBrush(Color.FromArgb(Ease.A(a, 22), Accent))) g.FillPath(b, p);
+            var edge = new RectangleF(face0.X, face0.Y + depth, face0.Width, face0.Height);
+            using (var p = Theme.Rounded(edge, rad))
+            using (var b = new SolidBrush(down ? Color.FromArgb(Ease.A(a, 255), 38, 66, 168) : Color.FromArgb(Ease.A(a, 255), 118, 120, 136))) g.FillPath(b, p);
+            var face = down ? new RectangleF(face0.X, face0.Y + depth * 0.75f, face0.Width, face0.Height) : face0;
+            using (var p = Theme.Rounded(face, rad))
+            {
+                Color c1 = down ? Color.FromArgb(Ease.A(a, 255), 122, 160, 255) : Color.FromArgb(Ease.A(a, 255), 252, 252, 254);
+                Color c2 = down ? Color.FromArgb(Ease.A(a, 255), 74, 112, 242) : Color.FromArgb(Ease.A(a, 255), 220, 221, 230);
+                using (var b = new LinearGradientBrush(new RectangleF(face.X, face.Y - 1, face.Width, face.Height + 2), c1, c2, 90f)) g.FillPath(b, p);
+                using (var pen = new Pen(Color.FromArgb(Ease.A(a, down ? 110 : 80), 255, 255, 255), 1f)) g.DrawPath(pen, p);
+            }
+            var ink = down ? Color.FromArgb(Ease.A(a, 255), 255, 255, 255) : Color.FromArgb(Ease.A(a, 255), 26, 26, 34);
+            float cx = face.X + face.Width / 2, cy = face.Y + face.Height / 2;
+            if (!ArrowKey(g, text, cx, cy, ink, arrowScale))
+            {
+                var ts = g.MeasureString(text, font, PointF.Empty, tight);
+                using (var b = new SolidBrush(ink)) g.DrawString(text, font, b, cx - ts.Width / 2, cy - ts.Height / 2 - 1, tight);
+            }
+        }
+
+        // anillo que se expande al tocar la tecla: "¡aquí se disparó la acción!"
+        static void Ripple(Graphics g, RectangleF face, double dt, double a, float grow)
+        {
+            double k = dt / 0.45;
+            if (k < 0 || k >= 1) return;
+            float inf = (float)(3 + grow * Ease.OutCubic(k));
+            using (var p = Theme.Rounded(RectangleF.Inflate(face, inf, inf), face.Height * 0.2f + inf))
+            using (var pen = new Pen(Color.FromArgb(Ease.A(a * (1 - k), 230), Accent), 3f)) g.DrawPath(pen, p);
         }
 
         void Stage(Graphics g, double t)
@@ -406,6 +564,7 @@ namespace Encuadre.Demo
             AppWin active = order[order.Count - 1];
             foreach (var w in order) DrawWindow(g, w, w.At(t), w == active, t);
 
+            foreach (var fl in s.Flashes) DrawFlash(g, fl, t);
             foreach (var b in s.Badges) DrawBadge(g, b, t);
             foreach (var f in s.Feet) DrawFootprint(g, f, t);
 
@@ -632,6 +791,19 @@ namespace Encuadre.Demo
             using (var pen = new Pen(Color.FromArgb(Ease.A(a, 255), 10, 10, 10), 1.2f) { LineJoin = LineJoin.Round }) g.DrawPolygon(pen, arrow);
         }
 
+        static void DrawFlash(Graphics g, Flash f, double t)
+        {
+            double k = (t - f.T) / 0.6;
+            if (k < 0 || k >= 1) return;
+            double a = 1 - Ease.OutCubic(k);
+            var r = f.W.At(t);
+            using (var p = Theme.Rounded(RectangleF.Inflate(r, 2, 2), 9))
+            {
+                using (var pen = new Pen(Color.FromArgb(Ease.A(a, 70), Accent), 9f)) g.DrawPath(pen, p);
+                using (var pen = new Pen(Color.FromArgb(Ease.A(a, 240), Accent), 2.5f)) g.DrawPath(pen, p);
+            }
+        }
+
         void DrawCaption(Graphics g, double t)
         {
             foreach (var c in s.Captions)
@@ -640,11 +812,14 @@ namespace Encuadre.Demo
                 if (a <= 0) continue;
                 float dy = (float)((1 - Ease.OutCubic((t - c.T0) / 0.45)) * 10);
                 using (var b = new SolidBrush(Color.FromArgb(Ease.A(a, 255), 246, 246, 250)))
-                    g.DrawString(c.Title, fCapTitle, b, new RectangleF(0, 14 + dy, W, 40), center);
+                    g.DrawString(c.Title, fCapTitle, b, new RectangleF(0, 9 + dy, W, 40), center);
                 using (var b = new SolidBrush(Color.FromArgb(Ease.A(a, 255), 160, 162, 182)))
-                    g.DrawString(c.Sub, fCapSub, b, new RectangleF(0, 52 + dy, W, 26), center);
+                    g.DrawString(c.Sub, fCapSub, b, new RectangleF(0, 46 + dy, W, 26), center);
             }
         }
+
+        // ---------- teclas pulsadas (franja inferior) ----------
+        const float PlusW = 36, LabelGap = 40, IconSz = 34;
 
         void DrawHud(Graphics g, double t)
         {
@@ -654,86 +829,81 @@ namespace Encuadre.Demo
                 if (t < sh.T0 || t >= sh.T1) continue;
                 bool joinedBefore = i > 0 && Math.Abs(s.Shots[i - 1].T1 - sh.T0) < 1e-6;
                 bool joinedAfter = i < s.Shots.Count - 1 && Math.Abs(s.Shots[i + 1].T0 - sh.T1) < 1e-6;
-                double a = Ease.Window(t, sh.T0, sh.T1, joinedBefore ? 0 : 0.15, joinedAfter ? 0 : 0.2);
-                double la = sh.Keys.Length == 0 ? a : Math.Min(a, Ease.Clamp((t - sh.Press) / 0.12));
-                DrawShot(g, sh, a, la, t);
+                double a = Ease.Window(t, sh.T0, sh.T1, joinedBefore ? 0 : 0.18, joinedAfter ? 0 : 0.22);
+                DrawShot(g, sh, a, t);
             }
         }
 
-        void DrawShot(Graphics g, Shot sh, double a, double labelA, double t)
+        float KeyWidth(Graphics g, string key)
         {
-            const float keyH = 36, top = 584;
-            var widths = new float[sh.Keys.Length];
-            float total = 0;
-            for (int k = 0; k < sh.Keys.Length; k++)
-            {
-                widths[k] = Math.Max(42, g.MeasureString(sh.Keys[k], fKey, PointF.Empty, tight).Width + 26);
-                total += widths[k] + (k > 0 ? 22 : 0);
-            }
-            int sepAt = sh.Label.IndexOf(" · ");
-            float labelW = 24 + 10 + (sepAt < 0
-                ? g.MeasureString(sh.Label, fLabel, PointF.Empty, tight).Width
-                : g.MeasureString(sh.Label.Substring(0, sepAt), fLabel, PointF.Empty, tight).Width + 50);
-            float gapToLabel = sh.Keys.Length > 0 ? 26 : 0;
-            float x = (W - (total + gapToLabel + labelW)) / 2f;
-            bool pressed = t >= sh.Press && t < sh.Press + 0.16;
+            if (key == "←" || key == "→" || key == "↑" || key == "↓") return KeyH + 14;
+            return Math.Max(KeyH + 10, g.MeasureString(key, fKey, PointF.Empty, tight).Width + 44);
+        }
 
-            for (int k = 0; k < sh.Keys.Length; k++)
+        float LabelWidth(Graphics g, string label)
+        {
+            int dot = label.IndexOf(" · ");
+            string main = dot >= 0 ? label.Substring(0, dot) : label;
+            return IconSz + 14 + g.MeasureString(main, fLabel, PointF.Empty, tight).Width + (dot >= 0 ? 72 : 0);
+        }
+
+        void DrawShot(Graphics g, Shot sh, double a, double t)
+        {
+            int tap = -1;
+            for (int j = 0; j < sh.Taps.Length; j++) if (t >= sh.Taps[j]) tap = j;
+            int nk = sh.Keys.Length;
+            var widths = new float[nk];
+            float keysW = 0;
+            for (int k = 0; k < nk; k++) { widths[k] = KeyWidth(g, sh.Keys[k]); keysW += widths[k] + (k > 0 ? PlusW : 0); }
+            float labelW = 0;
+            foreach (var l in sh.Labels) labelW = Math.Max(labelW, LabelWidth(g, l)); // así las teclas no saltan
+            float gap = nk > 0 ? LabelGap : 0;
+            float x = (W - (keysW + gap + labelW)) / 2f;
+
+            for (int k = 0; k < nk; k++)
             {
                 if (k > 0)
                 {
+                    var ps = g.MeasureString("+", fPlus, PointF.Empty, tight);
                     using (var b = new SolidBrush(Color.FromArgb(Ease.A(a, 255), 120, 122, 140)))
-                        g.DrawString("+", fKey, b, x + 5, top + 8, tight);
-                    x += 22;
+                        g.DrawString("+", fPlus, b, x + (PlusW - ps.Width) / 2, HudTop + (KeyH - ps.Height) / 2, tight);
+                    x += PlusW;
                 }
-                float off = pressed ? 3 : 0;
-                var edge = new RectangleF(x, top + 4, widths[k], keyH);
-                var face = new RectangleF(x, top + off, widths[k], keyH - (pressed ? 1 : 0));
-                using (var p = Theme.Rounded(edge, 8))
-                using (var b = new SolidBrush(Color.FromArgb(Ease.A(a, 255), 132, 132, 146))) g.FillPath(b, p);
-                using (var p = Theme.Rounded(face, 8))
-                {
-                    using (var b = new LinearGradientBrush(new RectangleF(face.X, face.Y - 1, face.Width, face.Height + 2),
-                        Color.FromArgb(Ease.A(a, 255), pressed ? 226 : 250, pressed ? 228 : 250, pressed ? 236 : 253),
-                        Color.FromArgb(Ease.A(a, 255), pressed ? 200 : 222, pressed ? 202 : 222, pressed ? 212 : 230), 90f))
-                        g.FillPath(b, p);
-                    if (pressed)
-                        using (var pen = new Pen(Color.FromArgb(Ease.A(a, 220), 120, 150, 255), 2f)) g.DrawPath(pen, p);
-                }
-                var ink = Color.FromArgb(Ease.A(a, 255), 26, 26, 34);
-                float kcx = x + widths[k] / 2, kcy = face.Y + face.Height / 2 - 1;
-                if (!ArrowKey(g, sh.Keys[k], kcx, kcy, ink))
-                {
-                    var ts = g.MeasureString(sh.Keys[k], fKey, PointF.Empty, tight);
-                    using (var b = new SolidBrush(ink))
-                        g.DrawString(sh.Keys[k], fKey, b, kcx - ts.Width / 2, kcy - ts.Height / 2, tight);
-                }
+                bool down = k < nk - 1
+                    ? t >= sh.Down[k] && t < sh.Release
+                    : tap >= 0 && t < sh.Taps[tap] + 0.24;
+                var face = new RectangleF(x, HudTop, widths[k], KeyH);
+                DrawKey(g, face, sh.Keys[k], fKey, down, a, 6, 1.5f);
+                if (k == nk - 1 && tap >= 0) Ripple(g, face, t - sh.Taps[tap], a, 16);
                 x += widths[k];
             }
-            x += gapToLabel;
-            if (labelA > 0)
+            x += gap;
+            if (tap < 0) return;
+            double la = Math.Min(a, Ease.Clamp((t - sh.Taps[tap]) / 0.15));
+            string main = sh.Labels[tap], extra = null;
+            int dot = main.IndexOf(" · ");
+            if (dot >= 0) { extra = main.Substring(dot + 3); main = main.Substring(0, dot); }
+            Icons.Draw(g, sh.Icons[tap], new RectangleF(x, HudTop + (KeyH - IconSz) / 2, IconSz, IconSz), Color.FromArgb(Ease.A(la, 240), 235, 236, 245));
+            var ms = g.MeasureString(main, fLabel, PointF.Empty, tight);
+            float tx = x + IconSz + 14;
+            using (var b = new SolidBrush(Color.FromArgb(Ease.A(la, 255), 228, 229, 238)))
             {
-                Icons.Draw(g, sh.Icon, new RectangleF(x, top + 6, 24, 24), Color.FromArgb(Ease.A(labelA, 235), 235, 236, 245));
-                string main = sh.Label, extra = null;
-                int dot = main.IndexOf(" · ");
-                if (dot >= 0) { extra = main.Substring(dot + 3); main = main.Substring(0, dot); }
-                using (var b = new SolidBrush(Color.FromArgb(Ease.A(labelA, 255), 214, 216, 228)))
+                g.DrawString(main, fLabel, b, tx, HudTop + (KeyH - ms.Height) / 2 - 1, tight);
+                if (extra != null)
                 {
-                    g.DrawString(main, fLabel, b, x + 34, top + 9, tight);
-                    if (extra != null)
-                    {
-                        float mx = x + 34 + g.MeasureString(main, fLabel, PointF.Empty, tight).Width + 10;
-                        using (var pill = Theme.Rounded(new RectangleF(mx, top + 4, 40, 28), 8))
-                        using (var pb = new SolidBrush(Color.FromArgb(Ease.A(labelA, 60), 255, 255, 255))) g.FillPath(pb, pill);
-                        var fs = g.MeasureString(extra, fFrac, PointF.Empty, tight);
-                        g.DrawString(extra, fFrac, b, mx + (40 - fs.Width) / 2, top + 4 + (28 - fs.Height) / 2, tight);
-                    }
+                    float mx = tx + ms.Width + 14, pw = 58, ph = 44;
+                    var pr = new RectangleF(mx, HudTop + (KeyH - ph) / 2, pw, ph);
+                    using (var pill = Theme.Rounded(pr, 10))
+                    using (var pb = new SolidBrush(Color.FromArgb(Ease.A(la, 255), Accent))) g.FillPath(pb, pill);
+                    var fs = g.MeasureString(extra, fFrac, PointF.Empty, tight);
+                    using (var wb = new SolidBrush(Color.FromArgb(Ease.A(la, 255), 255, 255, 255)))
+                        g.DrawString(extra, fFrac, wb, pr.X + (pw - fs.Width) / 2, pr.Y + (ph - fs.Height) / 2 - 1, tight);
                 }
             }
         }
 
         // ← → ↑ ↓ como vectores: los glifos de Segoe UI salen demasiado pequeños dentro de una tecla
-        static bool ArrowKey(Graphics g, string key, float cx, float cy, Color c)
+        static bool ArrowKey(Graphics g, string key, float cx, float cy, Color c, float scale)
         {
             float dx, dy;
             switch (key)
@@ -744,12 +914,11 @@ namespace Encuadre.Demo
                 case "↓": dx = 0; dy = 1; break;
                 default: return false;
             }
-            const float len = 7.5f, head = 5.5f;
-            using (var pen = new Pen(c, 2.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
+            float len = 7.5f * scale, head = 5.5f * scale;
+            using (var pen = new Pen(c, 2.4f * scale) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round })
             {
                 float tx = cx + dx * len, ty = cy + dy * len;
                 g.DrawLine(pen, cx - dx * len, cy - dy * len, tx, ty);
-                // punta: dos trazos a 45°
                 g.DrawLines(pen, new[] {
                     new PointF(tx - dx * head - dy * head, ty - dy * head + dx * head),
                     new PointF(tx, ty),
