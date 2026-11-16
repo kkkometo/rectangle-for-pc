@@ -48,9 +48,9 @@ namespace Encuadre
             if (IsEmpty) return "";
             var sb = new StringBuilder();
             if ((Mods & Mod.Win) != 0) sb.Append("Win+");
-            if ((Mods & Mod.Ctrl) != 0) sb.Append("Ctrl+");
+            if ((Mods & Mod.Ctrl) != 0) sb.Append(Lang.T("KeyCtrl") + "+");
             if ((Mods & Mod.Alt) != 0) sb.Append("Alt+");
-            if ((Mods & Mod.Shift) != 0) sb.Append("Mayús+");
+            if ((Mods & Mod.Shift) != 0) sb.Append(Lang.T("KeyShift") + "+");
             sb.Append(KeyName(Vk));
             return sb.ToString();
         }
@@ -63,22 +63,24 @@ namespace Encuadre
                 case 0x26: return "↑";
                 case 0x27: return "→";
                 case 0x28: return "↓";
-                case 0x0D: return "Intro";
-                case 0x08: return "Retroceso";
-                case 0x2E: return "Supr";
-                case 0x2D: return "Insert";
-                case 0x20: return "Espacio";
+                case 0x0D: return Lang.T("KeyEnter");
+                case 0x08: return Lang.T("KeyBackspace");
+                case 0x2E: return Lang.T("KeyDelete");
+                case 0x2D: return Lang.T("KeyInsert");
+                case 0x20: return Lang.T("KeySpace");
                 case 0x09: return "Tab";
                 case 0x1B: return "Esc";
-                case 0x24: return "Inicio";
-                case 0x23: return "Fin";
-                case 0x21: return "RePág";
-                case 0x22: return "AvPág";
+                case 0x24: return Lang.T("KeyHome");
+                case 0x23: return Lang.T("KeyEnd");
+                case 0x21: return Lang.T("KeyPageUp");
+                case 0x22: return Lang.T("KeyPageDown");
                 case 0x6A: return "Num *";
                 case 0x6B: return "Num +";
                 case 0x6D: return "Num -";
-                case 0x6E: return "Num ,";
                 case 0x6F: return "Num /";
+                case 0x6E:
+                    uint dec = Native.MapVirtualKey(0x6E, 2);
+                    return "Num " + (dec != 0 ? ((char)(dec & 0x7FFF)).ToString() : ".");
             }
             if (vk >= 0x70 && vk <= 0x87) return "F" + (vk - 0x6F);
             if ((vk >= 0x30 && vk <= 0x39) || (vk >= 0x41 && vk <= 0x5A)) return ((char)vk).ToString();
@@ -96,13 +98,13 @@ namespace Encuadre
     public sealed class ActionDef
     {
         public ActionId Id;
-        public string Name;
         public Shortcut Default;
         public int Group;
-        public ActionDef(ActionId id, string name, int group, int mods, int vk)
+        public ActionDef(ActionId id, int group, int mods, int vk)
         {
-            Id = id; Name = name; Group = group; Default = new Shortcut(mods, vk);
+            Id = id; Group = group; Default = new Shortcut(mods, vk);
         }
+        public string Name { get { return Lang.T(Id.ToString()); } }
     }
 
     public static class Actions
@@ -114,53 +116,53 @@ namespace Encuadre
         // Teclas por defecto de Rectangle, con Win+Alt (⌘⌥) como modificador base; pantallas: Ctrl+Alt+Win
         public static readonly ActionDef[] All = new ActionDef[]
         {
-            new ActionDef(ActionId.LeftHalf, "Mitad izquierda", 0, CA, VK_LEFT),
-            new ActionDef(ActionId.RightHalf, "Mitad derecha", 0, CA, VK_RIGHT),
-            new ActionDef(ActionId.CenterHalf, "Mitad central", 0, 0, 0),
-            new ActionDef(ActionId.TopHalf, "Mitad superior", 0, CA, VK_UP),
-            new ActionDef(ActionId.BottomHalf, "Mitad inferior", 0, CA, VK_DOWN),
+            new ActionDef(ActionId.LeftHalf, 0, CA, VK_LEFT),
+            new ActionDef(ActionId.RightHalf, 0, CA, VK_RIGHT),
+            new ActionDef(ActionId.CenterHalf, 0, 0, 0),
+            new ActionDef(ActionId.TopHalf, 0, CA, VK_UP),
+            new ActionDef(ActionId.BottomHalf, 0, CA, VK_DOWN),
 
-            new ActionDef(ActionId.TopLeft, "Arriba a la izquierda", 1, CA, 'U'),
-            new ActionDef(ActionId.TopRight, "Arriba a la derecha", 1, CA, 'I'),
-            new ActionDef(ActionId.BottomLeft, "Abajo a la izquierda", 1, CA, 'J'),
-            new ActionDef(ActionId.BottomRight, "Abajo a la derecha", 1, CA, 'K'),
+            new ActionDef(ActionId.TopLeft, 1, CA, 'U'),
+            new ActionDef(ActionId.TopRight, 1, CA, 'I'),
+            new ActionDef(ActionId.BottomLeft, 1, CA, 'J'),
+            new ActionDef(ActionId.BottomRight, 1, CA, 'K'),
 
-            new ActionDef(ActionId.FirstThird, "Primer tercio", 2, CA, 'D'),
-            new ActionDef(ActionId.CenterThird, "Tercio central", 2, CA, 'F'),
-            new ActionDef(ActionId.LastThird, "Último tercio", 2, CA, 'G'),
-            new ActionDef(ActionId.FirstTwoThirds, "Primeros dos tercios", 2, CA, 'E'),
-            new ActionDef(ActionId.CenterTwoThirds, "Dos tercios centrales", 2, CA, 'R'),
-            new ActionDef(ActionId.LastTwoThirds, "Últimos dos tercios", 2, CA, 'T'),
+            new ActionDef(ActionId.FirstThird, 2, CA, 'D'),
+            new ActionDef(ActionId.CenterThird, 2, CA, 'F'),
+            new ActionDef(ActionId.LastThird, 2, CA, 'G'),
+            new ActionDef(ActionId.FirstTwoThirds, 2, CA, 'E'),
+            new ActionDef(ActionId.CenterTwoThirds, 2, CA, 'R'),
+            new ActionDef(ActionId.LastTwoThirds, 2, CA, 'T'),
 
-            new ActionDef(ActionId.Maximize, "Maximizar", 3, CA, VK_RETURN),
-            new ActionDef(ActionId.AlmostMaximize, "Casi maximizar", 3, 0, 0),
-            new ActionDef(ActionId.MaximizeHeight, "Maximizar altura", 3, CA | Mod.Shift, VK_UP),
-            new ActionDef(ActionId.Smaller, "Más pequeña", 3, CA, VK_OEM_MINUS),
-            new ActionDef(ActionId.Larger, "Más grande", 3, CA, VK_OEM_PLUS),
-            new ActionDef(ActionId.Center, "Centrar", 3, CA, 'C'),
-            new ActionDef(ActionId.Restore, "Restaurar", 3, CA, VK_BACK),
+            new ActionDef(ActionId.Maximize, 3, CA, VK_RETURN),
+            new ActionDef(ActionId.AlmostMaximize, 3, 0, 0),
+            new ActionDef(ActionId.MaximizeHeight, 3, CA | Mod.Shift, VK_UP),
+            new ActionDef(ActionId.Smaller, 3, CA, VK_OEM_MINUS),
+            new ActionDef(ActionId.Larger, 3, CA, VK_OEM_PLUS),
+            new ActionDef(ActionId.Center, 3, CA, 'C'),
+            new ActionDef(ActionId.Restore, 3, CA, VK_BACK),
 
-            new ActionDef(ActionId.NextDisplay, "Pantalla siguiente", 4, CA | Mod.Ctrl, VK_RIGHT),
-            new ActionDef(ActionId.PreviousDisplay, "Pantalla anterior", 4, CA | Mod.Ctrl, VK_LEFT),
+            new ActionDef(ActionId.NextDisplay, 4, CA | Mod.Ctrl, VK_RIGHT),
+            new ActionDef(ActionId.PreviousDisplay, 4, CA | Mod.Ctrl, VK_LEFT),
 
-            new ActionDef(ActionId.MoveLeft, "Mover a la izquierda", 5, 0, 0),
-            new ActionDef(ActionId.MoveRight, "Mover a la derecha", 5, 0, 0),
-            new ActionDef(ActionId.MoveUp, "Mover arriba", 5, 0, 0),
-            new ActionDef(ActionId.MoveDown, "Mover abajo", 5, 0, 0),
+            new ActionDef(ActionId.MoveLeft, 5, 0, 0),
+            new ActionDef(ActionId.MoveRight, 5, 0, 0),
+            new ActionDef(ActionId.MoveUp, 5, 0, 0),
+            new ActionDef(ActionId.MoveDown, 5, 0, 0),
 
-            new ActionDef(ActionId.FirstFourth, "Primer cuarto", 6, 0, 0),
-            new ActionDef(ActionId.SecondFourth, "Segundo cuarto", 6, 0, 0),
-            new ActionDef(ActionId.ThirdFourth, "Tercer cuarto", 6, 0, 0),
-            new ActionDef(ActionId.LastFourth, "Último cuarto", 6, 0, 0),
-            new ActionDef(ActionId.FirstThreeFourths, "Primeros tres cuartos", 6, 0, 0),
-            new ActionDef(ActionId.LastThreeFourths, "Últimos tres cuartos", 6, 0, 0),
+            new ActionDef(ActionId.FirstFourth, 6, 0, 0),
+            new ActionDef(ActionId.SecondFourth, 6, 0, 0),
+            new ActionDef(ActionId.ThirdFourth, 6, 0, 0),
+            new ActionDef(ActionId.LastFourth, 6, 0, 0),
+            new ActionDef(ActionId.FirstThreeFourths, 6, 0, 0),
+            new ActionDef(ActionId.LastThreeFourths, 6, 0, 0),
 
-            new ActionDef(ActionId.TopLeftSixth, "Sexto superior izquierdo", 7, 0, 0),
-            new ActionDef(ActionId.TopCenterSixth, "Sexto superior central", 7, 0, 0),
-            new ActionDef(ActionId.TopRightSixth, "Sexto superior derecho", 7, 0, 0),
-            new ActionDef(ActionId.BottomLeftSixth, "Sexto inferior izquierdo", 7, 0, 0),
-            new ActionDef(ActionId.BottomCenterSixth, "Sexto inferior central", 7, 0, 0),
-            new ActionDef(ActionId.BottomRightSixth, "Sexto inferior derecho", 7, 0, 0),
+            new ActionDef(ActionId.TopLeftSixth, 7, 0, 0),
+            new ActionDef(ActionId.TopCenterSixth, 7, 0, 0),
+            new ActionDef(ActionId.TopRightSixth, 7, 0, 0),
+            new ActionDef(ActionId.BottomLeftSixth, 7, 0, 0),
+            new ActionDef(ActionId.BottomCenterSixth, 7, 0, 0),
+            new ActionDef(ActionId.BottomRightSixth, 7, 0, 0),
         };
 
         public static ActionDef Get(ActionId id)
@@ -171,8 +173,7 @@ namespace Encuadre
 
         public static string NameOf(ActionId id)
         {
-            var d = Get(id);
-            return d == null ? id.ToString() : d.Name;
+            return Lang.T(id.ToString());
         }
 
         public static bool Repeatable(ActionId id)
@@ -196,10 +197,10 @@ namespace Encuadre
         {
             switch (choice)
             {
-                case None: return "Ninguna";
-                case LeftCompound: return "Mitad izq. + sup./inf.";
-                case RightCompound: return "Mitad der. + sup./inf.";
-                case ThirdsCompound: return "Tercios";
+                case None: return Lang.T("SnapNone");
+                case LeftCompound: return Lang.T("SnapLeftCompound");
+                case RightCompound: return Lang.T("SnapRightCompound");
+                case ThirdsCompound: return Lang.T("SnapThirds");
             }
             ActionId id;
             if (Enum.TryParse(choice, out id)) return Actions.NameOf(id);
@@ -256,6 +257,7 @@ namespace Encuadre
         public bool AnimateFootprint = true;
         public bool HideTrayIcon = false;
         public int RepeatMode = 0; // 0 = alternar ½ ⅔ ⅓, 1 = mover a pantalla contigua, 2 = nada
+        public string Language = Lang.Auto; // "auto" = idioma de Windows
         public bool FirstRun = true;
         public bool InMemory = false;
 
@@ -335,6 +337,7 @@ namespace Encuadre
                         case "animateFootprint": c.AnimateFootprint = v == "1"; break;
                         case "hideTrayIcon": c.HideTrayIcon = v == "1"; break;
                         case "repeatMode": int.TryParse(v, out c.RepeatMode); break;
+                        case "language": c.Language = v.Length > 0 ? v : Lang.Auto; break;
                         case "ignored":
                             c.Ignored.Clear();
                             foreach (var s in v.Split('|')) if (s.Trim().Length > 0) c.Ignored.Add(s.Trim());
@@ -374,8 +377,9 @@ namespace Encuadre
             {
                 Directory.CreateDirectory(Dir);
                 var sb = new StringBuilder();
-                sb.AppendLine("# Encuadre - preferencias");
+                sb.AppendLine("# " + Lang.AppName + " settings");
                 sb.AppendLine("keysVersion=" + KeysVersion);
+                sb.AppendLine("language=" + Language);
                 sb.AppendLine("gap=" + Gap);
                 sb.AppendLine("snapEnabled=" + (SnapEnabled ? 1 : 0));
                 sb.AppendLine("restoreOnUnsnap=" + (RestoreOnUnsnap ? 1 : 0));

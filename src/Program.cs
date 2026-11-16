@@ -21,7 +21,14 @@ namespace Encuadre
 
             if (args.Length >= 2 && args[0] == "--write-icon") { Icons.WriteIco(args[1]); return 0; }
             if (args.Length >= 2 && args[0] == "--selftest") return SelfTest.Run(args[1]);
-            if (args.Length >= 3 && args[0] == "--shot") { if (args.Length >= 4) Theme.Force = args[3]; return Shots.Run(args[1], args[2]); }
+            if (args.Length >= 3 && args[0] == "--shot")
+            {
+                if (args.Length >= 4) Theme.Force = args[3];
+                // con idioma explícito, la captura simula un Windows en ese idioma (no muestra el del equipo)
+                if (args.Length >= 5) Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo(args[4]);
+                Lang.Set(args.Length >= 5 ? args[4] : Lang.Auto);
+                return Shots.Run(args[1], args[2]);
+            }
 
             bool created;
             using (var mutex = new Mutex(true, @"Local\Encuadre.SingleInstance", out created))
@@ -34,7 +41,9 @@ namespace Encuadre
                 }
                 Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Log.Write("UI", e.Exception); };
                 AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Log.Write("Fatal: " + e.ExceptionObject); };
-                var app = new App(Config.Load(), showEvent, false);
+                var cfg = Config.Load();
+                Lang.Set(cfg.Language);
+                var app = new App(cfg, showEvent, false);
                 Application.Run(app);
                 GC.KeepAlive(mutex);
             }
@@ -195,6 +204,8 @@ namespace Encuadre
         public static int Run(string outPath)
         {
             Win.AllowOwnProcess = true;
+            LangChecks();
+            Lang.Set("es"); // las comprobaciones de atajos de abajo usan los nombres en español
             var cfg = Config.Defaults();
             cfg.InMemory = true;
             var exec = new Executor(delegate { return cfg; });
@@ -394,6 +405,50 @@ namespace Encuadre
             log.AppendLine(fails == 0 ? "TODO OK" : fails + " FALLOS");
             File.WriteAllText(outPath, log.ToString(), new UTF8Encoding(true));
             return fails;
+        }
+
+        static void LangChecks()
+        {
+            int cols = Lang.Codes.Length + 1;
+            var keys = new System.Collections.Generic.HashSet<string>();
+            foreach (var row in Lang.AllRows)
+            {
+                bool full = row.Length == cols;
+                if (full) foreach (var s in row) if (string.IsNullOrEmpty(s)) full = false;
+                if (!full) Check("Idioma: fila completa " + row[0], false, row.Length + " columnas");
+                if (!keys.Add(row[0])) Check("Idioma: clave repetida " + row[0], false, null);
+                if (full)
+                {
+                    // los marcadores {0}, {1} deben ser los mismos en todos los idiomas
+                    string en = Placeholders(row[1]);
+                    for (int i = 2; i < row.Length; i++)
+                        if (Placeholders(row[i]) != en)
+                            Check("Idioma: marcadores " + row[0] + " (" + Lang.Codes[i - 1] + ")", false, row[i]);
+                }
+            }
+            foreach (ActionId a in Enum.GetValues(typeof(ActionId)))
+                if (a != ActionId.None && !keys.Contains(a.ToString())) Check("Idioma: falta la acción " + a, false, null);
+            Check("Idioma: " + keys.Count + " textos × " + Lang.Codes.Length + " idiomas", true, null);
+            Check("Idioma: es-CO → es", Lang.Detect(new System.Globalization.CultureInfo("es-CO")) == "es", null);
+            Check("Idioma: de-AT → de", Lang.Detect(new System.Globalization.CultureInfo("de-AT")) == "de", null);
+            Check("Idioma: pt-BR → pt", Lang.Detect(new System.Globalization.CultureInfo("pt-BR")) == "pt", null);
+            Check("Idioma: ja-JP → en (sin traducción)", Lang.Detect(new System.Globalization.CultureInfo("ja-JP")) == "en", null);
+            Lang.Set("fr");
+            Check("Idioma: fr traduce Maximizar", Actions.NameOf(ActionId.Maximize) == "Agrandir", Actions.NameOf(ActionId.Maximize));
+            Check("Idioma: fr Maj+Entrée", new Shortcut(Mod.Win | Mod.Shift, 0x0D).ToString() == "Win+Maj+Entrée", new Shortcut(Mod.Win | Mod.Shift, 0x0D).ToString());
+            Lang.Set("de");
+            Check("Idioma: de Strg", new Shortcut(Mod.Ctrl | Mod.Alt, 'K').ToString() == "Strg+Alt+K", new Shortcut(Mod.Ctrl | Mod.Alt, 'K').ToString());
+            Lang.Set("xx");
+            Check("Idioma: código desconocido usa el de Windows", Lang.Current == Lang.Detect(), Lang.Current);
+            log.AppendLine("Idioma de Windows detectado: " + Lang.Detect() + " (" + System.Globalization.CultureInfo.CurrentUICulture.Name + ")");
+        }
+
+        static string Placeholders(string s)
+        {
+            var l = new System.Collections.Generic.List<string>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(s, @"\{\d+\}")) l.Add(m.Value);
+            l.Sort();
+            return string.Join("", l.ToArray());
         }
 
         static ActionId Area(Config cfg, int x, int y)

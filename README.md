@@ -2,7 +2,7 @@
 
 A window manager for Windows 10 and 11, modeled on [Rectangle](https://rectangleapp.com/) for macOS. Move and resize windows with keyboard shortcuts or by dragging them to the edges and corners of the screen.
 
-Unofficial project, not affiliated with Rectangle or its authors. The interface is in Spanish.
+Unofficial project, not affiliated with Rectangle or its authors.
 
 ![Keyboard shortcuts](docs/shortcuts.png)
 
@@ -13,6 +13,7 @@ Unofficial project, not affiliated with Rectangle or its authors. The interface 
 - Snap areas: drag a window to an edge or corner to get a preview and drop it into place. Each area can be reassigned.
 - Move windows between monitors. Works with mixed DPI setups.
 - Optional gap between windows, per-app exclusions, light and dark theme, start at login.
+- Available in English, Spanish, Portuguese, French, German and Italian. It follows the Windows display language and falls back to English.
 - Single executable, no installer, no dependencies beyond the .NET Framework 4.8 that ships with Windows.
 
 ![Snap areas](docs/snap-areas.png)
@@ -50,6 +51,14 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 This produces `Encuadre.exe` in the project folder. Run it and it lives in the system tray; click the icon to open Preferences.
 
+## Languages
+
+The app uses the Windows display language when it has a translation for it, and English otherwise. To pick a different one, open Preferences › Settings › Language.
+
+![Settings](docs/settings.png)
+
+All interface text lives in [`src/Lang.cs`](src/Lang.cs): one row per string, one column per language. To add a language, add its code and name to `Codes` and `Names` and a column to every row. The self-test reports any row with a missing translation.
+
 ## Notes
 
 - Windows has its own Snap feature that also reacts to dragging windows to the edges. Turn it off in Settings › System › Multitasking › Snap windows to avoid two overlapping previews.
@@ -69,6 +78,7 @@ This produces `Encuadre.exe` in the project folder. Run it and it lives in the s
 | `src/Model.cs` | Actions, default shortcuts, configuration |
 | `src/Prefs.cs` | Preferences window |
 | `src/Theme.cs` | Colors, icons, light/dark theme |
+| `src/Lang.cs` | Interface text in every language, language detection |
 | `src/Native.cs` | Win32 interop |
 
 ## Credits

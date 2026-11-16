@@ -242,8 +242,8 @@ namespace Encuadre
             else UI.StrokeRound(g, P.FieldBorder, r, UI.S(5), 1);
 
             string text; Color c;
-            if (recording) { text = "Pulsa el atajo…"; c = P.Accent; }
-            else if (value.IsEmpty) { text = "Grabar atajo"; c = P.SubText; }
+            if (recording) { text = Lang.T("RecordPrompt"); c = P.Accent; }
+            else if (value.IsEmpty) { text = Lang.T("RecordEmpty"); c = P.SubText; }
             else { text = value.ToString(); c = P.Text; }
             var tr = new Rectangle(UI.S(6), 0, Width - UI.S(12) - (value.IsEmpty || recording ? 0 : Height - UI.S(6)), Height);
             UI.Text(g, text, Font, c, tr, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
@@ -282,7 +282,7 @@ namespace Encuadre
 
     sealed class TabBar : FlatControl
     {
-        public readonly string[] Labels = { "Atajos de teclado", "Áreas de ajuste", "Ajustes" };
+        public readonly string[] Labels = { Lang.T("TabShortcuts"), Lang.T("TabSnap"), Lang.T("TabSettings") };
         int selected, hot = -1;
         public event EventHandler SelectedChanged;
         public TabBar(Palette p) : base(p) { Cursor = Cursors.Hand; }
@@ -291,7 +291,15 @@ namespace Encuadre
             get { return selected; }
             set { selected = value; Invalidate(); if (SelectedChanged != null) SelectedChanged(this, EventArgs.Empty); }
         }
-        int TabW { get { return UI.S(132); } }
+        int TabW
+        {
+            get
+            {
+                int w = UI.S(132);
+                foreach (var l in Labels) w = Math.Max(w, TextRenderer.MeasureText(l, Font).Width + UI.S(20));
+                return w;
+            }
+        }
         Rectangle TabRect(int i)
         {
             int total = TabW * Labels.Length + UI.S(8) * (Labels.Length - 1);
@@ -413,7 +421,7 @@ namespace Encuadre
         {
             App = app;
             P = Palette.Create(Theme.AppsLight);
-            Text = "Encuadre";
+            Text = Lang.AppName;
             Font = Theme.UiFont(9.75f);
             AutoScaleMode = AutoScaleMode.None;
             FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -449,7 +457,7 @@ namespace Encuadre
         {
             StopRecordingAll();
             for (int k = 0; k < pages.Count; k++) pages[k].Visible = k == i;
-            Text = tabs.Labels[i] + " — Encuadre";
+            Text = tabs.Labels[i] + " — " + Lang.AppName;
             if (i == 1) UpdateTip();
             if (i == 2) RefreshIgnored();
         }
@@ -546,7 +554,7 @@ namespace Encuadre
             var page = NewPage();
             int colW = (ClientSize.Width - UI.S(56) - UI.S(32) - SystemInformation.VerticalScrollBarWidth) / 2;
             int[][] cols = { new[] { 0, 1, 2, 6 }, new[] { 3, 4, 5, 7 } };
-            int rowH = UI.S(34), boxW = Math.Min(UI.S(170), colW / 2), boxH = UI.S(28);
+            int rowH = UI.S(34), boxW = Math.Min(UI.S(186), colW / 2), boxH = UI.S(28);
             int maxY = 0;
             for (int c = 0; c < 2; c++)
             {
@@ -571,8 +579,7 @@ namespace Encuadre
                 }
                 maxY = Math.Max(maxY, y);
             }
-            var hint = NewLabel("Haz clic en un atajo y pulsa la nueva combinación. Retroceso lo borra, Esc cancela. " +
-                                "AltGr nunca cuenta como Ctrl, así que € y @ siguen funcionando.", UI.S(28), maxY, ClientSize.Width - UI.S(80), true);
+            var hint = NewLabel(Lang.T("ShortcutHint"), UI.S(28), maxY, ClientSize.Width - UI.S(80), true);
             hint.Height = UI.S(44);
             page.Controls.Add(hint);
             page.Controls.Add(new Label { Location = new Point(0, maxY + UI.S(60)), Size = new Size(1, 1) });
@@ -586,22 +593,22 @@ namespace Encuadre
             int x = UI.S(28), y = UI.S(18), fullW = ClientSize.Width - UI.S(56) - SystemInformation.VerticalScrollBarWidth;
             var cfg = App.Config;
 
-            var snapOn = new FlatCheck(P, "Ajustar ventanas arrastrándolas a los bordes y esquinas de la pantalla", cfg.SnapEnabled) { Location = new Point(x, y), Width = fullW };
+            var snapOn = new FlatCheck(P, Lang.T("SnapEnable"), cfg.SnapEnabled) { Location = new Point(x, y), Width = fullW };
             snapOn.CheckedChanged += delegate { cfg.SnapEnabled = snapOn.Checked; cfg.Save(); App.SnapSettingsChanged(); };
             page.Controls.Add(snapOn); y += UI.S(32);
 
-            var unsnap = new FlatCheck(P, "Recuperar el tamaño original al sacar la ventana de un área", cfg.RestoreOnUnsnap) { Location = new Point(x, y), Width = fullW };
+            var unsnap = new FlatCheck(P, Lang.T("SnapRestore"), cfg.RestoreOnUnsnap) { Location = new Point(x, y), Width = fullW };
             unsnap.CheckedChanged += delegate { cfg.RestoreOnUnsnap = unsnap.Checked; cfg.Save(); };
             page.Controls.Add(unsnap); y += UI.S(32);
 
-            var anim = new FlatCheck(P, "Animar la vista previa", cfg.AnimateFootprint) { Location = new Point(x, y), Width = fullW };
+            var anim = new FlatCheck(P, Lang.T("SnapAnimate"), cfg.AnimateFootprint) { Location = new Point(x, y), Width = fullW };
             anim.CheckedChanged += delegate { cfg.AnimateFootprint = anim.Checked; cfg.Save(); };
             page.Controls.Add(anim); y += UI.S(44);
 
             // bloque: pantalla en el centro y desplegables alrededor
             int blockW = Math.Min(fullW, UI.S(780));
             int ox = x + (fullW - blockW) / 2, oy = y;
-            int comboW = UI.S(196);
+            int comboW = UI.S(208);
             int dW = blockW - 2 * comboW - UI.S(40), dH = (int)(dW * 0.62f) + UI.S(34);
             int dX = ox + comboW + UI.S(20), dY = oy + UI.S(40);
             diagram = new SnapDiagram(P) { Location = new Point(dX, dY), Size = new Size(dW, dH) };
@@ -649,14 +656,12 @@ namespace Encuadre
             diagram.Dir = SnapDir.L; diagram.Choice = cfg.SnapAreas.ContainsKey(SnapDir.L) ? cfg.SnapAreas[SnapDir.L] : SnapChoices.LeftCompound;
 
             y = dY + dH + UI.S(56);
-            tipLabel = NewLabel("Windows tiene su propio «Ajustar ventanas», que también reacciona al arrastrar a los bordes. " +
-                                "Para que sea idéntico a Rectangle y no salgan dos vistas previas, desactívalo en Configuración › Sistema › Multitarea.",
-                                x, y, fullW, true);
+            tipLabel = NewLabel(Lang.T("WinSnapTip"), x, y, fullW, true);
             tipLabel.Height = UI.S(44);
             page.Controls.Add(tipLabel);
             tipLink = new LinkLabel
             {
-                Text = "Abrir Configuración › Multitarea", Location = new Point(x, y + UI.S(46)), AutoSize = true,
+                Text = Lang.T("WinSnapLink"), Location = new Point(x, y + UI.S(46)), AutoSize = true,
                 LinkColor = P.Accent, ActiveLinkColor = P.Accent, VisitedLinkColor = P.Accent, BackColor = Color.Transparent
             };
             tipLink.LinkClicked += delegate { try { Process.Start("ms-settings:multitasking"); } catch { } };
@@ -681,39 +686,56 @@ namespace Encuadre
             var cfg = App.Config;
             int x = UI.S(28), y = UI.S(18), fullW = ClientSize.Width - UI.S(56) - SystemInformation.VerticalScrollBarWidth;
 
-            var login = new FlatCheck(P, "Abrir Encuadre al iniciar sesión en Windows", App.LaunchAtLogin) { Location = new Point(x, y), Width = fullW };
+            var login = new FlatCheck(P, Lang.F("LaunchAtLogin", Lang.AppName), App.LaunchAtLogin) { Location = new Point(x, y), Width = fullW };
             login.CheckedChanged += delegate { App.LaunchAtLogin = login.Checked; };
             page.Controls.Add(login); y += UI.S(32);
 
-            var hide = new FlatCheck(P, "Ocultar el icono de la bandeja (vuelve a abrir Encuadre para ver estas preferencias)", cfg.HideTrayIcon) { Location = new Point(x, y), Width = fullW };
+            var hide = new FlatCheck(P, Lang.F("HideTray", Lang.AppName), cfg.HideTrayIcon) { Location = new Point(x, y), Width = fullW };
             hide.CheckedChanged += delegate { cfg.HideTrayIcon = hide.Checked; cfg.Save(); App.TrayVisibilityChanged(); };
             page.Controls.Add(hide); y += UI.S(48);
 
             int labelW = UI.S(230);
-            page.Controls.Add(NewLabel("Comandos repetidos", x, y + UI.S(4), labelW, false));
+            page.Controls.Add(NewLabel(Lang.T("Language"), x, y + UI.S(4), labelW, false));
+            var lang = NewCombo(x + labelW, y, UI.S(380));
+            string detected = Lang.Names[Array.IndexOf(Lang.Codes, Lang.Detect())];
+            lang.Items.Add(new Choice(Lang.Auto, Lang.T("LangAuto") + " (" + detected + ")"));
+            for (int i = 0; i < Lang.Codes.Length; i++) lang.Items.Add(new Choice(Lang.Codes[i], Lang.Names[i]));
+            lang.SelectedIndex = Math.Max(0, Array.IndexOf(Lang.Codes, cfg.Language) + 1);
+            lang.SelectedIndexChanged += delegate
+            {
+                string key = ((Choice)lang.SelectedItem).Key;
+                if (key == cfg.Language) return;
+                cfg.Language = key;
+                cfg.Save();
+                BeginInvoke(new Action(App.LanguageChanged));
+            };
+            page.Controls.Add(lang); y += UI.S(46);
+
+            page.Controls.Add(NewLabel(Lang.T("RepeatLabel"), x, y + UI.S(4), labelW, false));
             var rep = NewCombo(x + labelW, y, UI.S(380));
-            rep.Items.Add(new Choice("0", "Alternar ½, ⅔ y ⅓ en las mitades"));
-            rep.Items.Add(new Choice("1", "Mover a la pantalla contigua (izq./der.)"));
-            rep.Items.Add(new Choice("2", "No hacer nada"));
+            rep.Items.Add(new Choice("0", Lang.T("Repeat0")));
+            rep.Items.Add(new Choice("1", Lang.T("Repeat1")));
+            rep.Items.Add(new Choice("2", Lang.T("Repeat2")));
             rep.SelectedIndex = Math.Max(0, Math.Min(2, cfg.RepeatMode));
             rep.SelectedIndexChanged += delegate { cfg.RepeatMode = rep.SelectedIndex; cfg.Save(); };
             page.Controls.Add(rep); y += UI.S(46);
 
-            page.Controls.Add(NewLabel("Espacio entre ventanas", x, y + UI.S(4), labelW, false));
+            page.Controls.Add(NewLabel(Lang.T("GapLabel"), x, y + UI.S(4), labelW, false));
             var gapVal = NewLabel(cfg.Gap + " px", x + labelW + UI.S(310), y + UI.S(4), UI.S(70), true);
             var gap = new Slider(P, 50, cfg.Gap) { Location = new Point(x + labelW - UI.S(8), y), Width = UI.S(310) };
             gap.ValueChanged += delegate { cfg.Gap = gap.Value; gapVal.Text = gap.Value + " px"; cfg.Save(); };
             page.Controls.Add(gap);
             page.Controls.Add(gapVal); y += UI.S(52);
 
-            page.Controls.Add(NewLabel("Apps ignoradas", x, y, labelW, false));
-            page.Controls.Add(NewLabel("Sus atajos no los captura Encuadre. Añádelas desde el menú de la bandeja.", x, y + UI.S(22), labelW, true));
-            page.Controls[page.Controls.Count - 1].Height = UI.S(64);
+            page.Controls.Add(NewLabel(Lang.T("IgnoredLabel"), x, y, labelW, false));
+            var ignoredHint = NewLabel(Lang.F("IgnoredHint", Lang.AppName), x, y + UI.S(22), labelW - UI.S(12), true);
+            ignoredHint.Height = UI.S(80);
+            page.Controls.Add(ignoredHint);
             var listHost = new Panel { Location = new Point(x + labelW, y), Size = new Size(UI.S(380), UI.S(96)), BackColor = P.FieldBorder, Padding = new Padding(1) };
             ignoredList = new ListBox { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, BackColor = P.Field, ForeColor = P.Text, IntegralHeight = false };
             listHost.Controls.Add(ignoredList);
             page.Controls.Add(listHost);
-            var remove = new FlatButton(P, "Dejar de ignorar") { Location = new Point(x + labelW + UI.S(392), y) };
+            var remove = new FlatButton(P, Lang.T("Unignore")) { Location = new Point(x + labelW + UI.S(392), y) };
             remove.Click += delegate
             {
                 if (ignoredList.SelectedItem == null) return;
@@ -727,14 +749,14 @@ namespace Encuadre
             var sep = new Panel { Location = new Point(x, y), Size = new Size(fullW, 1), BackColor = P.Border };
             page.Controls.Add(sep); y += UI.S(18);
 
-            var resetKeys = new FlatButton(P, "Restaurar atajos por defecto") { Location = new Point(x, y) };
+            var resetKeys = new FlatButton(P, Lang.T("ResetKeys")) { Location = new Point(x, y) };
             resetKeys.Click += delegate
             {
                 cfg.ResetShortcuts(); cfg.Save(); App.ShortcutsChanged();
                 foreach (var kv in boxes) kv.Value.Value = cfg.ShortcutFor(kv.Key);
             };
             page.Controls.Add(resetKeys);
-            var resetSnap = new FlatButton(P, "Restaurar áreas por defecto") { Location = new Point(resetKeys.Right + UI.S(10), y) };
+            var resetSnap = new FlatButton(P, Lang.T("ResetSnap")) { Location = new Point(resetKeys.Right + UI.S(10), y) };
             resetSnap.Click += delegate
             {
                 cfg.ResetSnapAreas(); cfg.Save();
@@ -749,13 +771,13 @@ namespace Encuadre
                 old.Dispose();
             };
             page.Controls.Add(resetSnap);
-            var quit = new FlatButton(P, "Salir de Encuadre") { Location = new Point(x + fullW - UI.S(10), y) };
+            var quit = new FlatButton(P, Lang.F("Quit", Lang.AppName)) { Location = new Point(x + fullW - UI.S(10), y) };
             quit.Left = x + fullW - quit.Width;
             quit.Click += delegate { App.Quit(); };
             page.Controls.Add(quit);
             y += UI.S(56);
 
-            var about = NewLabel("Encuadre 1.0 · gestor de ventanas para Windows, inspirado en Rectangle para macOS", x, y, fullW, true);
+            var about = NewLabel(Lang.F("About", Lang.AppName, Lang.Version), x, y, fullW, true);
             page.Controls.Add(about);
             page.Controls.Add(new Label { Location = new Point(0, y + UI.S(40)), Size = new Size(1, 1) });
             return page;

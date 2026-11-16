@@ -55,7 +55,7 @@ namespace Encuadre
             if (Win.IsManageable(fg)) lastTarget = fg;
 
             tray = new NotifyIcon();
-            tray.Text = "Encuadre";
+            tray.Text = Lang.AppName;
             tray.MouseUp += delegate(object s, MouseEventArgs e) { if (e.Button == MouseButtons.Left) ShowTrayMenu(); };
             RefreshTheme();
             tray.Visible = !Config.HideTrayIcon;
@@ -69,9 +69,7 @@ namespace Encuadre
                 Config.FirstRun = false;
                 Config.Save();
                 if (tray.Visible)
-                    tray.ShowBalloonTip(10000, "Encuadre está funcionando",
-                        "Win+Alt+← / → mitades · Win+Alt+Intro maximizar · o arrastra una ventana a un borde. Haz clic en el icono para ver todas las acciones.",
-                        ToolTipIcon.None);
+                    tray.ShowBalloonTip(10000, Lang.F("BalloonTitle", Lang.AppName), Lang.T("BalloonText"), ToolTipIcon.None);
             }
         }
 
@@ -127,6 +125,23 @@ namespace Encuadre
 
         public void TrayVisibilityChanged() { if (tray != null) tray.Visible = !Config.HideTrayIcon; }
 
+        // Cambio de idioma: se rehacen el menú y la ventana de preferencias (en la misma posición)
+        public void LanguageChanged()
+        {
+            Lang.Set(Config.Language);
+            RefreshTheme();
+            if (prefs != null && !prefs.IsDisposed)
+            {
+                var old = prefs;
+                var loc = old.Location;
+                prefs = new PrefsForm(this, 2);
+                prefs.Location = loc;
+                prefs.Show();
+                old.Close();
+                prefs.Activate();
+            }
+        }
+
         void RefreshTheme()
         {
             if (tray == null) return;
@@ -154,15 +169,15 @@ namespace Encuadre
                 foreach (var d in Actions.All) if (d.Group == g) menu.Items.Add(NewActionItem(d));
             }
             menu.Items.Add(NewSeparator());
-            menu.Items.Add(NewSubmenu("Cuartos", ActionId.FirstFourth, 6));
-            menu.Items.Add(NewSubmenu("Sextos", ActionId.TopLeftSixth, 7));
-            menu.Items.Add(NewSubmenu("Mover", ActionId.MoveLeft, 5));
+            menu.Items.Add(NewSubmenu(Lang.T("MenuFourths"), ActionId.FirstFourth, 6));
+            menu.Items.Add(NewSubmenu(Lang.T("MenuSixths"), ActionId.TopLeftSixth, 7));
+            menu.Items.Add(NewSubmenu(Lang.T("MenuMove"), ActionId.MoveLeft, 5));
             menu.Items.Add(NewSeparator());
-            ignoreItem = NewItem("Ignorar app", delegate { ToggleIgnore(); });
+            ignoreItem = NewItem(Lang.T("MenuIgnore"), delegate { ToggleIgnore(); });
             menu.Items.Add(ignoreItem);
-            menu.Items.Add(NewItem("Preferencias…", delegate { ShowPrefs(0); }));
+            menu.Items.Add(NewItem(Lang.T("MenuPrefs"), delegate { ShowPrefs(0); }));
             menu.Items.Add(NewSeparator());
-            menu.Items.Add(NewItem("Salir de Encuadre", delegate { Quit(); }));
+            menu.Items.Add(NewItem(Lang.F("Quit", Lang.AppName), delegate { Quit(); }));
             menu.Opening += delegate { UpdateMenuState(); };
             return menu;
         }
@@ -223,9 +238,9 @@ namespace Encuadre
             ignoreItem.Visible = ok;
             if (ok)
             {
-                string name = Win.AppDisplayName(lastTarget) ?? "esta app";
+                string name = Win.AppDisplayName(lastTarget) ?? Lang.T("ThisApp");
                 if (name.Length > 32) name = name.Substring(0, 30) + "…";
-                ignoreItem.Text = (IsIgnored(lastTarget) ? "Dejar de ignorar «" : "Ignorar «") + name + "»";
+                ignoreItem.Text = Lang.F(IsIgnored(lastTarget) ? "MenuUnignoreApp" : "MenuIgnoreApp", name);
             }
         }
 
